@@ -17,58 +17,55 @@ PASS = os.environ.get("EMAIL_PASSWORD")
 
 stock_params = {
     'function': 'TIME_SERIES_DAILY',
-    'symbol': 'IBM',
+    'symbol': STOCK,
     'apikey': STOCK_API_KEY
 }
 
-news_params = {
-    'q': "Tesla Inc",
-    'apiKey': NEWS_API_KEY
-}
-
-utc_time = dt.datetime.utcnow().date()
-today_date = utc_time - dt.timedelta(days=1)
-yesterday_date = str(today_date - dt.timedelta(days=2))
-previous_day_date = str(today_date - dt.timedelta(days=3))
 
 # replace the "demo" apikey below with your own key from https://www.alphavantage.co/support/#api-key
 response = requests.get(url=STOCK_ENDPOINT, params=stock_params)
 response.raise_for_status()
+data = response.json()["Time Series (Daily)"]
 
-data = response.json()
+data = [value for (key, value) in data.items()]
 
-yesterday_close_price = int(float(
-    data['Time Series (Daily)'][yesterday_date]['4. close']))
-previous_day_close_price = int(float(
-    data['Time Series (Daily)'][previous_day_date]['4. close']))
+yesterday_data = data[0]
+yesterday_closing_price = float(yesterday_data["4. close"])
 
-difference = abs(yesterday_close_price - previous_day_close_price)
-difference_percent = (difference / yesterday_close_price) * 100
+day_before_yesterday_data = data[1]
+day_before_yesterday_closing_price = float(
+    day_before_yesterday_data["4. close"])
 
-print(difference_percent)
+different = abs(yesterday_closing_price - day_before_yesterday_closing_price)
+different_percent = (different / yesterday_closing_price) * 100
 
-if difference_percent > 5:
+
+if different_percent > 0:
+    print("Get news")
+    news_params = {
+        'qInTitle': COMPANY_NAME,
+        'apiKey': NEWS_API_KEY
+    }
+
     response = requests.get(url=NEWS_ENDPOINT, params=news_params)
     response.raise_for_status()
-    data = response.json()["articles"]
+    articles = response.json()["articles"]
 
-    article = []
-    for i in range(3):
-        article.append(data[i])
+    three_articles = articles[:3]
+
+    formatted_articles = [
+        f"Headline: {article['title']} \nBrief: {article['description']}" for article in three_articles]
 
     connection = smtplib.SMTP(host="smtp.gmail.com")
     connection.starttls()
     connection.login(USER, PASS)
-    for article in article:
+
+    for article in formatted_articles:
         connection.sendmail(
             from_addr=USER,
             to_addrs=USER,
-            msg=f"Subject:{STOCK}: {difference_percent} \n\n{article}"
-
+            msg=f"Subject:{STOCK} Stock \n\n{article}"
         )
-
-    print(data)
-    print("Get News")
 
 
 # STEP 1: Use https://newsapi.org/docs/endpoints/everything
